@@ -41,7 +41,8 @@ mongoose.connect("mongodb://0.0.0.0:27017/userDB", {useNewUrlParser: true});
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    secret: String
 });
 
 // plugin passportLocalMongoose into our userSchema, it will perform
@@ -127,12 +128,51 @@ app.get("/logout", function(req, res) {
     });
 });
 
+// now for functionality our site actually doesn't need the users to be 
+// authenticated to view a secret, so we remove req.isAuthenticated()
 app.get("/secrets", function(req, res) {
+
+    // below code looks through all our documents(users in this case), finds secret 
+    // fields then check is they have some content ($ne: null means not equal to null)
+    // then fetch those users from the database.
+    User.find({"secret": {$ne: null}}, function(err, foundUsers) {
+        if(err) {
+            console.log(err);
+        }else{
+            if(foundUsers){
+                res.render("secrets", {usersWithSecrets: foundUsers})
+            }
+        }
+    });
+});
+
+app.get("/submit", function(req, res) {
     if(req.isAuthenticated()){
-        res.render("secrets");
+        res.render("submit");
     }else{
         res.redirect("/login");
     }
+});
+
+app.post("/submit", function(req, res) {
+    const submittedSecret = req.body.secret;
+
+    // when a user is logged in our session stores the info about our user
+    // such as the username and the id in the "req" so we can tap into the user
+    // by req.user
+    User.findById(req.user.id, function(err, foundUser) {
+
+        if(err) {
+            console.log(err);
+        }else{
+            if(foundUser){
+                foundUser.secret = submittedSecret;
+                foundUser.save(function() {
+                    res.redirect("/secrets");
+                });
+            }
+        }
+    });
 });
 
 // both when user has successfully registered or successfully logged in
